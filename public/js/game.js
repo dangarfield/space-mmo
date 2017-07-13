@@ -18,17 +18,27 @@ var standardDistance = 10000000 * bigFactor;
 var starPosArray = new Float32Array(starCount * 3);
 var kdtree;
 
-initPlane();
-initStars();
-initStats();
-initCamera();
-animate();
+var font;
+
+loadFontAndInit();
+
+function loadFontAndInit() {
+    var loader = new THREE.FontLoader();
+    loader.load('/js/threejs/fonts/helvetiker_regular.typeface.json', function (loadedFont) {
+        font = loadedFont;
+        initPlane();
+        initStars();
+        initStats();
+        initCamera();
+        animate();
+    });
+}
 
 function getNodeFromVector(v1) {
     // console.log("Get node - " + v1.x)
     // console.log(nodes);
     var filtered = nodes.filter(function (v2) {
-        return parseFloat(v2.x).toFixed(1) == v1.x.toFixed(1);
+        return parseFloat(v2.x).toFixed(1) == v1.x.toFixed(1) && parseFloat(v2.y).toFixed(1) == v1.y.toFixed(1) && parseFloat(v2.z).toFixed(1) == v1.z.toFixed(1);
     });
     // console.log(filtered);
     return filtered[0];
@@ -37,6 +47,8 @@ function getNodeFromVector(v1) {
 function initPlane() {
 
 }
+
+
 
 function normallyDistributedRandom() {
     var rnd = ((Math.random() + Math.random()) / 2);
@@ -124,9 +136,38 @@ function drawStars() {
         star.updateMatrix();
         star.matrixAutoUpdate = false;
         scene.add(star);
+
+        var text = makeTextSprite("  " + i);
+        text.position.setX(pos.x + 10);
+        text.position.setY(pos.y + 10);
+        text.position.setZ(pos.z + 10);
+        //Rotating and lookAt for rendering
+        scene.add(text);
     }
 }
 
+function makeTextSprite(message) {
+    var geometry = new THREE.TextGeometry(message, {
+        font: font,
+        size: 10,
+        height: 2,
+        curveSegments: 2
+    });
+    geometry.computeBoundingBox();
+    var centerOffset = -0.5 * (geometry.boundingBox.max.x - geometry.boundingBox.min.x);
+    var materials = [
+        new THREE.MeshBasicMaterial({
+            color: Math.random() * 0x00ff00,
+            overdraw: 0.5
+        }),
+        new THREE.MeshBasicMaterial({
+            color: 0x000000,
+            overdraw: 0.5
+        })
+    ];
+    var mesh = new THREE.Mesh(geometry, materials);
+    return mesh;
+}
 
 
 function generateInitialLinks() {
@@ -136,10 +177,10 @@ function generateInitialLinks() {
 
     for (var i in nodes) {
         var node = nodes[i];
-        var pos = node.vector;
+        var sourcePos = node.vector;
         // console.log(pos);
 
-        var posInRange = kdtree.nearest([pos.x, pos.y, pos.z], 3, standardDistance);
+        var posInRange = kdtree.nearest([sourcePos.x, sourcePos.y, sourcePos.z], 2 + 1, standardDistance);
         // console.log(i + " - " + posInRange.length);
         if (posInRange.length < 2) {
             // console.log("NONE");
@@ -148,21 +189,41 @@ function generateInitialLinks() {
         for (var j in posInRange) {
             var object = posInRange[j];
             //console.log(object[0].obj)
-            var objectPoint = new THREE.Vector3().fromArray(object[0].obj);
+            var targetPos = new THREE.Vector3().fromArray(object[0].obj);
             //console.log(posInRange)
             //console.log(" nearest ", objectPoint);
             //console.log(linksVectors)
-            linksVectors.push({
-                source: pos,
-                target: objectPoint
-            });
 
-            var targetNode = getNodeFromVector(objectPoint);
+            var targetNode = getNodeFromVector(targetPos);
 
-            links.push({
-                source: parseInt(i),
-                target: targetNode.name
-            });
+            var sourceName = parseInt(i);
+            var targetName = parseInt(targetNode.name);
+
+            if (targetName < sourceName) {
+                var tempTargetName = targetName;
+                var tempSourceName = sourceName;
+                targetName = tempSourceName;
+                sourceName = tempTargetName;
+
+                var tempTargetPos = targetPos;
+                var tempSourcePos = sourcePos;
+                targetPos = tempSourcePos;
+                sourcePos = tempTargetPos;
+            }
+
+            if (sourceName != targetName) {
+
+                linksVectors.push({
+                    source: sourcePos,
+                    target: targetPos
+                });
+
+                links.push({
+                    source: sourceName,
+                    target: targetName
+                });
+            }
+
 
         }
         // console.log(links);
@@ -194,19 +255,14 @@ function initStars() {
     // world
     scene = new THREE.Scene();
 
-
-
-
     scene.fog = new THREE.FogExp2(0xcccccc, 0.002);
-
 
     generateStarPositions();
     drawStars();
     generateInitialLinks(kdtree);
     // console.log(linksVectors)
+    connectDisconnectedGraphs();
     drawLinks(linksVectors);
-
-    group(links);
 
     // lights
     var light = new THREE.DirectionalLight(0xffffff);
@@ -276,7 +332,7 @@ function render() {
     stats.update();
 }
 
-function group(pairs) {
+function connectDisconnectedGraphs() {
     // Converts an edgelist to an adjacency list representation
     // In this program, we use a dictionary as an adjacency list,
     // where each key is a vertex, and each value is a list of all
@@ -360,8 +416,8 @@ function group(pairs) {
     //   "a7": ["a9"],
     //   "a9": ["a7"]
     // }
-    console.log("START GROUPS")
-    console.log(pairs);
+    console.log("Discounted groups")
+    // console.log(pairs);
     var adjlist = convert_edgelist_to_adjlist(pairs);
 
     for (v in adjlist) {
@@ -370,5 +426,63 @@ function group(pairs) {
         }
     }
 
+    groups.sort(function (a, b) {
+        return a.length - b.length;
+    });
     console.log(groups);
+
+    if (groups.length > 1) {
+        // console.log("There are disconnected clusters");
+        var disconnectedNodes = [];
+        for (var g in groups[0]) {
+            disconnectedNodes.push(parseInt(groups[0][g]));
+        }
+
+        var potentialLinks = [];
+        for (var d in disconnectedNodes) {
+            var disconnectedNode = disconnectedNodes[d];
+            // console.log(disconnectedNode);
+            var sourceNode = nodes[disconnectedNode];
+            for (var c = 0; c < starCount; c++) {
+                if (disconnectedNodes.indexOf(c) === -1) {
+                    var targetNode = nodes[c];
+
+                    //console.log(targetNode);
+                    var comparativeDistance = Math.pow(sourceNode.x - targetNode.x, 2) + Math.pow(sourceNode.y - targetNode.y, 2) + Math.pow(sourceNode.z - targetNode.z, 2);
+                    potentialLinks.push({
+                        source: disconnectedNode,
+                        target: c,
+                        distance: comparativeDistance
+                    });
+                    //console.log(comparativeDistance)
+                }
+            }
+        }
+
+        potentialLinks.sort(function (a, b) {
+            return a.distance - b.distance;
+        });
+        // console.log(potentialLinks)
+
+        var sourceName = potentialLinks[0].source > potentialLinks[0].target ? potentialLinks[0].target : potentialLinks[0].source;
+        var targetName = potentialLinks[0].source > potentialLinks[0].target ? potentialLinks[0].source : potentialLinks[0].target;
+        var sourcePos = nodes[sourceName].vector;
+        var targetPos = nodes[targetName].vector;
+
+        // console.log(sourceName + " - " + targetName)
+        // console.log(sourcePos, targetPos)
+
+        linksVectors.push({
+            source: sourcePos,
+            target: targetPos
+        });
+        links.push({
+            source: sourceName,
+            target: targetName
+        });
+        connectDisconnectedGraphs(); //Recursive
+
+    } else {
+        console.log("Graph complete");
+    }
 }
