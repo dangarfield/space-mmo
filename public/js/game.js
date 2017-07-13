@@ -19,8 +19,16 @@ var starPosArray = new Float32Array(starCount * 3);
 var kdtree;
 
 var font;
+var randomSeed = 0.1; // Between 1 - 999999999999999
 
 loadFontAndInit();
+
+function seededRandom() {
+    var x = Math.sin(randomSeed++) * 10000;
+    return x - Math.floor(x);
+}
+
+
 
 function loadFontAndInit() {
     var loader = new THREE.FontLoader();
@@ -51,7 +59,7 @@ function initPlane() {
 
 
 function normallyDistributedRandom() {
-    var rnd = ((Math.random() + Math.random()) / 2);
+    var rnd = ((seededRandom() + seededRandom()) / 2);
 
     //console.log(rnd);
     return rnd;
