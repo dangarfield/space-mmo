@@ -22,7 +22,8 @@ var kdtree;
 
 var font;
 var randomSeed = 0.1; // Between 1 - 999999999999999
-//var randomSeed = Math.random();
+var randomSeed = Math.random();
+var guiController;
 
 loadFontAndInit();
 
@@ -41,9 +42,24 @@ function loadFontAndInit() {
         initCamera();
         initStars();
         initStats();
+        setupDatGui();
         render();
         animate();
     });
+}
+
+function setupDatGui() {
+    guiController = {
+        focusNode: 1
+    };
+
+    var h;
+    var gui = new dat.GUI();
+
+    h = gui.add(guiController, "focusNode").name("Focus node").onChange(resetCamera);
+
+    // var customContainer = document.getElementById('my-gui-container');
+    // customContainer.appendChild(gui.domElement);
 }
 
 function getNodeFromVector(v1) {
@@ -295,14 +311,31 @@ function initStars() {
     //renderer.setClearColor(scene.fog.color);
     //renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
-    container = document.getElementById('container');
+    container = document.getElementById('threeCanvas');
     container.appendChild(renderer.domElement);
 
+    var focusNode = nodes[0];
+    controls.target.set(parseFloat(focusNode.vector.x), parseFloat(focusNode.vector.y), parseFloat(focusNode.vector.z));
+    console.log(controls.target)
 }
 
 function initStats() {
     stats = new Stats();
     container.appendChild(stats.dom);
+}
+
+function resetCamera() {
+    console.log(controls.target)
+    var focusNodeId = guiController.focusNode;
+    var focusNode = nodes[focusNodeId];
+    // controls = new THREE.OrbitControls(camera, document.getElementById('threeCanvas'));
+    controls.target.set(parseFloat(focusNode.vector.x), parseFloat(focusNode.vector.y), parseFloat(focusNode.vector.z));
+    // camera.position.x = focusNode.vector.x;
+    // camera.position.y = focusNode.vector.y;
+    // camera.position.z = focusNode.vector.z;
+    // camera.lookAt(focusNode.vector);
+
+    render();
 }
 
 function initCamera() {
@@ -311,7 +344,7 @@ function initCamera() {
     camera.position.y = 700;
     camera.position.z = 1100;
 
-    controls = new THREE.OrbitControls(camera);
+    controls = new THREE.OrbitControls(camera, document.getElementById('threeCanvas'));
 
     // controls = new THREE.TrackballControls(camera);
     // controls.rotateSpeed = 2.0;
@@ -348,6 +381,9 @@ function render() {
         nodeLabels[i].lookAt(camera.position);
         //do something about yaw - Look into a css on canvas based trick
     }
+    // var focusNodeId = guiController.focusNode;
+    // var focusNode = nodes[focusNodeId];
+    // camera.lookAt(focusNode.vector);
 
     renderer.render(scene, camera);
     stats.update();
