@@ -4,6 +4,7 @@ var camera, controls, scene, renderer;
 var cross;
 var positions, alphas, particles, _particleGeom;
 var nodes = [],
+    nodeLabels = [],
     links = [],
     linksVectors = [];
 
@@ -14,12 +15,14 @@ var starMat = new THREE.MeshPhongMaterial({
 });
 var bigFactor = 1;
 var starCount = 250 * bigFactor;
-var standardDistance = 10000000 * bigFactor;
+var standardDistance = 1000000 * bigFactor;
+var linksPerNode = 2;
 var starPosArray = new Float32Array(starCount * 3);
 var kdtree;
 
 var font;
 var randomSeed = 0.1; // Between 1 - 999999999999999
+//var randomSeed = Math.random();
 
 loadFontAndInit();
 
@@ -35,9 +38,10 @@ function loadFontAndInit() {
     loader.load('/js/threejs/fonts/helvetiker_regular.typeface.json', function (loadedFont) {
         font = loadedFont;
         initPlane();
+        initCamera();
         initStars();
         initStats();
-        initCamera();
+        render();
         animate();
     });
 }
@@ -60,10 +64,10 @@ function initPlane() {
 
 function normallyDistributedRandom() {
     var rnd = ((seededRandom() + seededRandom()) / 2);
-
     //console.log(rnd);
     return rnd;
 }
+
 
 function cylinderMesh(vstart, vend) {
 
@@ -150,6 +154,9 @@ function drawStars() {
         text.position.setY(pos.y + 10);
         text.position.setZ(pos.z + 10);
         //Rotating and lookAt for rendering
+
+        text.lookAt(camera.position);
+        nodeLabels.push(text);
         scene.add(text);
     }
 }
@@ -188,7 +195,7 @@ function generateInitialLinks() {
         var sourcePos = node.vector;
         // console.log(pos);
 
-        var posInRange = kdtree.nearest([sourcePos.x, sourcePos.y, sourcePos.z], 2 + 1, standardDistance);
+        var posInRange = kdtree.nearest([sourcePos.x, sourcePos.y, sourcePos.z], linksPerNode + 1, standardDistance);
         // console.log(i + " - " + posInRange.length);
         if (posInRange.length < 2) {
             // console.log("NONE");
@@ -266,10 +273,10 @@ function initStars() {
     scene.fog = new THREE.FogExp2(0xcccccc, 0.002);
 
     generateStarPositions();
-    drawStars();
     generateInitialLinks(kdtree);
-    // console.log(linksVectors)
     connectDisconnectedGraphs();
+
+    drawStars();
     drawLinks(linksVectors);
 
     // lights
@@ -319,7 +326,7 @@ function initCamera() {
 
     window.addEventListener('resize', onWindowResize, false);
 
-    render();
+
 }
 
 function onWindowResize() {
@@ -336,6 +343,12 @@ function animate() {
 }
 
 function render() {
+
+    for (var i = 1, l = nodeLabels.length; i < l; i++) {
+        nodeLabels[i].lookAt(camera.position);
+        //do something about yaw - Look into a css on canvas based trick
+    }
+
     renderer.render(scene, camera);
     stats.update();
 }
